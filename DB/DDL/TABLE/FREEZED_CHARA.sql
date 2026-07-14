@@ -1,0 +1,42 @@
+/*
+冬眠キャラのデータを登録するテーブル
+*/
+-- DROP TABLE PUBLIC.FREEZED_CHARA;
+CREATE TABLE PUBLIC.FREEZED_CHARA (
+    /* ID(主キー) */
+     ID UUID PRIMARY KEY DEFAULT GEN_RANDOM_UUID()
+    /* 投稿者名(Supabase Authで管理するユーザ) */
+    ,USER_ID UUID NOT NULL
+        REFERENCES AUTH.USERS(ID)
+        ON DELETE CASCADE
+    /* コメント */
+    ,COMMENT VARCHAR(400) NOT NULL
+        CHECK (CHAR_LENGTH(TRIM(COMMENT)) BETWEEN 1 AND 400)
+    /* キャラクタファイルパス */
+    ,CHARA_FILE_PATH TEXT NOT NULL
+    /* 画像ファイルパス */
+    ,IMAGE_FILE_PATH TEXT
+    /* 元のキャラクタファイル名 */
+    ,ORIGINAL_CHARA_FILENAME VARCHAR(255) NOT NULL
+    /* 元の画像ファイル名 */
+    ,ORIGINAL_IMAGE_FILENAME VARCHAR(255)
+    /* ステータス('0':公開 / '1':非公開 / '2':削除済み) */
+    ,STATUS CHAR(1) NOT NULL DEFAULT '0'
+        CHECK (STATUS IN ('0', '1', '2'))
+    /* 作成日 */
+    ,INS_DATE TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    /* 更新日 */
+    ,UPD_DATE TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    /* 備考 */
+    ,NOTE VARCHAR(400)
+);
+/* インデックス(作成日) */
+-- DROP INDEX IDX_FREEZED_CHARA_INS_DATE;
+CREATE INDEX IDX_FREEZED_CHARA_INS_DATE
+    ON public.FREEZED_CHARA (INS_DATE DESC);
+/* インデックス(ユーザID) */
+-- DROP INDEX IDX_FREEZED_CHARA_USE_ID;
+CREATE INDEX IDX_FREEZED_CHARA_USE_ID
+    ON public.FREEZED_CHARA (user_id);
+/* RLSを有効化する */
+ALTER TABLE PUBLIC.FREEZED_CHARA ENABLE ROW LEVEL SECURITY;

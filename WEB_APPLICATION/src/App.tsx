@@ -4,18 +4,51 @@ import type { User } from '@supabase/supabase-js'
 import './App.css'
 import { supabase } from './lib/supabase'
 
+/**
+ * 投稿一覧としてSupabaseから取得するデータの型
+ */
+type FreezedCharaPost = {
+  id: string
+  comment: string
+  ins_date: string
+  profiles: {
+    user_name: string
+  } | null
+}
+
 function App() {
+  /*
+   * ログインフォームの入力値
+   */
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
+  /*
+   * ログイン中のユーザー情報
+   */
   const [user, setUser] = useState<User | null>(null)
   const [userName, setUserName] = useState('')
 
+  /*
+   * ログイン処理に関する表示
+   */
   const [message, setMessage] = useState(
     'メールアドレスとパスワードを入力してください。',
   )
   const [isProcessing, setIsProcessing] = useState(false)
 
+  /*
+   * 投稿一覧
+   */
+  const [posts, setPosts] = useState<FreezedCharaPost[]>([])
+  const [postsMessage, setPostsMessage] = useState(
+    '投稿一覧を取得しています...',
+  )
+
+  /**
+   * 初回表示時に、保存済みのログインセッションを確認する。
+   * また、ログイン・ログアウトの状態変化を監視する。
+   */
   useEffect(() => {
     const initializeAuth = async () => {
       const {
@@ -45,6 +78,10 @@ function App() {
     }
   }, [])
 
+  /**
+   * ログインユーザーが変わったときに、
+   * profilesテーブルから表示用ユーザー名を取得する。
+   */
   useEffect(() => {
     const fetchProfile = async () => {
       if (!user) {
@@ -60,6 +97,7 @@ function App() {
 
       if (error) {
         console.error(error)
+        setUserName('')
         setMessage(`ユーザー名の取得に失敗しました：${error.message}`)
         return
       }
@@ -71,10 +109,61 @@ function App() {
     void fetchProfile()
   }, [user])
 
-  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
+  /**
+   * 初回表示時に、公開中の投稿一覧を取得する。
+   */
+  useEffect(() => {
+    const fetchPosts = async () => {
+      setPostsMessage('投稿一覧を取得しています...')
+
+      const { data, error } = await supabase
+        .from('freezed_chara')
+        .select(`
+          id,
+          comment,
+          ins_date,
+          profiles:profiles!fk_freezed_chara_user (
+            user_name
+          )
+        `)
+        .eq('status', '0')
+        .order('ins_date', { ascending: false })
+
+      if (error) {
+        console.error(error)
+        setPosts([])
+        setPostsMessage(
+          `投稿一覧の取得に失敗しました：${error.message}`,
+        )
+        return
+      }
+
+      const fetchedPosts = (data ?? []) as FreezedCharaPost[]
+
+      setPosts(fetchedPosts)
+
+      if (fetchedPosts.length === 0) {
+        setPostsMessage('公開中の投稿はありません。')
+        return
+      }
+
+      setPostsMessage(`${fetchedPosts.length}件の投稿を取得しました。`)
+    }
+
+    void fetchPosts()
+  }, [])
+
+  /**
+   * ログイン処理
+   */
+  const handleLogin = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault()
 
-    if (!email.trim() || !password) {
+    const trimmedEmail = email.trim()
+
+    if (!trimmedEmail || !password) {
       setMessage('メールアドレスとパスワードを入力してください。')
       return
     }
@@ -83,7 +172,7 @@ function App() {
     setMessage('ログインしています...')
 
     const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: trimmedEmail,
       password,
     })
 
@@ -99,6 +188,9 @@ function App() {
     setIsProcessing(false)
   }
 
+  /**
+   * ログアウト処理
+   */
   const handleLogout = async () => {
     setIsProcessing(true)
 
@@ -111,6 +203,7 @@ function App() {
       return
     }
 
+    setUserName('')
     setMessage('ログアウトしました。')
     setIsProcessing(false)
   }
@@ -136,46 +229,98 @@ function App() {
               <strong>{userName || '取得中...'}</strong>
             </p>
 
-            <p>メールアドレス：{user.email}</p>
+            <p>
+              メールアドレス：
+              {user.email ?? '不明'}
+            </p>
 
             <button
               type="button"
               onClick={handleLogout}
               disabled={isProcessing}
             >
-              ログアウト
+              {isProcessing ? '処理中...' : 'ログアウト'}
             </button>
           </div>
         ) : (
           <form onSubmit={handleLogin}>
             <div>
-              <label htmlFor="email">メールアドレス</label>
+              <label htmlFor="email">
+                メールアドレス
+              </label>
+
               <br />
+
               <input
                 id="email"
                 type="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                  setEmail(event.target.value)
+                }}
                 autoComplete="email"
+                disabled={isProcessing}
               />
             </div>
 
             <div>
-              <label htmlFor="password">パスワード</label>
+              <label htmlFor="password">
+                パスワード
+              </label>
+
               <br />
+
               <input
                 id="password"
                 type="password"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => {
+                  setPassword(event.target.value)
+                }}
                 autoComplete="current-password"
+                disabled={isProcessing}
               />
             </div>
 
-            <button type="submit" disabled={isProcessing}>
-              ログイン
+            <button
+              type="submit"
+              disabled={isProcessing}
+            >
+              {isProcessing ? '処理中...' : 'ログイン'}
             </button>
           </form>
+        )}
+      </section>
+
+      <section>
+        <h2>登録キャラクター一覧</h2>
+
+        <p>{postsMessage}</p>
+
+        {posts.length > 0 && (
+          <div>
+            {posts.map((post) => (
+              <article key={post.id}>
+                <h3>
+                  投稿者：
+                  {post.profiles?.user_name ??
+                    '不明なユーザー'}
+                </h3>
+
+                <p>{post.comment}</p>
+
+                <p>
+                  登録日時：
+                  {new Date(post.ins_date).toLocaleString(
+                    'ja-JP',
+                    {
+                      timeZone: 'Asia/Tokyo',
+                    },
+                  )}
+                </p>
+              </article>
+            ))}
+          </div>
         )}
       </section>
     </main>
